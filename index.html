@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>恐竜ラン（Chrome オフライン風）</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="game-shell" aria-label="ゲーム画面">
+    <div class="stage stage--title">
+      <img id="start-screen" class="start-screen" alt="" />
+      <div class="canvas-shell">
+        <canvas id="game" width="800" height="250" aria-label="ゲーム画面"></canvas>
+      </div>
+      <img
+        id="space-hint"
+        class="space-hint"
+        alt="Space キーを押す案内"
+      />
+    </div>
+  </main>
+  <script src="js/game.js"></script>
+</body>
+</html>

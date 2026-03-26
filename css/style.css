@@ -1,0 +1,114 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", "Yu Gothic UI", "Hiragino Sans", sans-serif;
+  background: #ffffff;
+  color: #222;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px 16px 28px;
+}
+
+/*
+ * タイトルもプレイも同じ最大幅（本家キャンバス 600px に合わせる）。
+ * 以前 800px だと論理 800 のキャンバスが横いっぱいに伸び、Start.png よりプレイだけ大きく見えやすい。
+ */
+.game-shell {
+  width: 100%;
+  max-width: 600px;
+  flex-shrink: 0;
+  border: none;
+  background: #ffffff;
+  overflow: hidden;
+  padding: 36px 12px 40px;
+  box-sizing: border-box;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stage--title {
+  image-rendering: auto;
+}
+
+.stage--game {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.start-screen {
+  display: block;
+  width: 100%;
+  /* プレイ時 canvas-shell と同じ高さ箱に固定して切替時のガタつきを防ぐ */
+  aspect-ratio: 800 / 250;
+  height: auto;
+  object-fit: contain;
+  background: #ffffff;
+  vertical-align: middle;
+}
+
+.stage--game .start-screen {
+  display: none;
+}
+
+.stage--title .canvas-shell {
+  display: none !important;
+}
+
+.stage--game .canvas-shell {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  line-height: 0;
+  /* 論理 800×250。タイトルとの高さ差を抑えるためレターボックスは控えめ */
+  aspect-ratio: 800 / 250;
+  display: flex;
+  /* 上寄せにして drawGround() のホライズン線が stage 枠からズレるのを防ぐ */
+  align-items: flex-start;
+  justify-content: flex-start;
+  background: #ffffff;
+}
+
+.stage--game #game {
+  background: #ffffff;
+  filter: none;
+}
+
+/* 夜モード時はキャンバス全体を反転して本家の白黒反転に近づける */
+.stage--night #game {
+  filter: invert(1);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  vertical-align: middle;
+}
+
+.space-hint {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  padding: 16px 12px 0;
+  image-rendering: auto;
+}
+
+.space-hint.hidden {
+  display: none;
+}
