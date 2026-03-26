@@ -16,7 +16,6 @@ body {
 
 /*
  * タイトルもプレイも同じ最大幅（本家キャンバス 600px に合わせる）。
- * 以前 800px だと論理 800 のキャンバスが横いっぱいに伸び、Start.png よりプレイだけ大きく見えやすい。
  */
 .game-shell {
   width: 100%;
@@ -94,7 +93,8 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 100%;
+  /* intrinsic 800×250 と一致させ、flex 内で height:auto だけに頼らない */
+  aspect-ratio: 800 / 250;
   vertical-align: middle;
 }
 

@@ -47,57 +47,54 @@
     });
   }
 
-  /** 効果音（Web Audio）。ファイル不要。false で無音 */
+  /** 効果音（Sound/ のファイル再生）。false で無音 */
   var SE_ENABLED = true;
-  var audioCtx = null;
   /** 最後に鳴らした「100 点区切り」の段（本家の milestone SE 相当） */
   var lastScoreHundredMark = 0;
-  function resumeAudioIfNeeded() {
-    if (!SE_ENABLED) return;
+
+  var seAudio = null;
+
+  function bootSe() {
+    if (seAudio) return;
     try {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === "suspended") {
-        audioCtx.resume();
-      }
-    } catch (e) {}
+      seAudio = {
+        jump: new Audio(assetURL("Sound/Jump.m4a")),
+        scoreup: new Audio(assetURL("Sound/scoreup.m4a")),
+        dead: new Audio(assetURL("Sound/dead.m4a")),
+      };
+      Object.keys(seAudio).forEach(function (k) {
+        var a = seAudio[k];
+        a.preload = "auto";
+      });
+    } catch (e) {
+      seAudio = {};
+    }
   }
 
-  function seBeep(freq, durSec, vol, waveType) {
+  function playSe(key) {
     if (!SE_ENABLED) return;
+    bootSe();
+    var base = seAudio && seAudio[key];
+    if (!base) return;
     try {
-      resumeAudioIfNeeded();
-      if (!audioCtx) return;
-      var t0 = audioCtx.currentTime;
-      var osc = audioCtx.createOscillator();
-      var g = audioCtx.createGain();
-      osc.type = waveType || "square";
-      osc.frequency.setValueAtTime(freq, t0);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(vol || 0.1, t0 + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + durSec);
-      osc.connect(g);
-      g.connect(audioCtx.destination);
-      osc.start(t0);
-      osc.stop(t0 + durSec + 0.04);
+      // 同時再生できるように複製して鳴らす
+      var a = base.cloneNode(true);
+      a.currentTime = 0;
+      var p = a.play();
+      if (p && typeof p.catch === "function") p.catch(function () {});
     } catch (e) {}
   }
 
   function playJumpSe() {
-    seBeep(320, 0.07, 0.11, "square");
+    playSe("jump");
   }
 
   function playCrashSe() {
-    seBeep(140, 0.14, 0.13, "sawtooth");
-    seBeep(70, 0.18, 0.12, "square");
+    playSe("dead");
   }
 
   function playMilestoneSe() {
-    seBeep(523.25, 0.05, 0.09, "square");
-    window.setTimeout(function () {
-      seBeep(783.99, 0.07, 0.07, "square");
-    }, 45);
+    playSe("scoreup");
   }
 
   function imgOk(key) {
@@ -268,6 +265,7 @@
   var GROUND_Y = Math.round(80 * (H / 150));
   var HORIZON_Y = Math.round(127 * (H / 150));
   var HORIZON_HEIGHT = Math.round(12 * (H / 150));
+
   var GRAVITY = 0.6;
   /** 本家 Trex.config 相当 */
   var INITIAL_JUMP_VELOCITY = -10;
@@ -302,24 +300,32 @@
   var CACTUS_SMALL_H = 42;
   var CACTUS_TALL_W = 28;
   var CACTUS_TALL_H = 50;
-  /** 地面ステージ画像の横スクロール量（state.distance に対する係数） */
-  var STAGE_IMAGE_PARALLAX = 0.5;
+  /** 地面ステージ画像の横スクロール量（state.distance に対する係数）。サボテン等と同速にする */
+  var STAGE_IMAGE_PARALLAX = 1.0;
   /** ステージ帯の表示高さ（GROUND_Y から上）。大きすぎるときは下げる */
   var STAGE_STRIP_MAX_H = 48;
+  /**
+   * stage 01 / 02 のキャンバス上の見た目だけ縮小（1/3）。
+   * 障害物・GROUND_Y・STAGE_STRIP_MAX_H などの論理値とは連動しない。
+   */
+  var STAGE_DRAW_SCALE = 1 / 3;
   /** 各スロットで最初に読めた 1 キーだけ使う（現状 2 枚のみ） */
   var STAGE_SLOT_CANDIDATES = [["stageSeg0"], ["stageSeg1"]];
   /** 複数本サボの幹の隙間 */
   var CACTUS_CLUSTER_GAP = Math.max(2, Math.round(3 * SPEED_MATCH_SCALE));
-  // 本家: 初期 SPEED=6、プテラは minSpeed 8.5。論理速度も同じ比率にする（最初から鳥は出ない）
-  var PTERA_MIN_SPEED = BASE_SPEED * (8.5 / 6);
+  // プテラの出現解禁。速度閾値が高いとスコア600付近まで出なくなるので少し早める。
+  var PTERA_MIN_SPEED = BASE_SPEED * (7.5 / 6);
   // 本家 Runner.config.MAX_OBSTACLE_DUPLICATION = 2（同じタイプの連続を抑える）
   var MAX_OBSTACLE_DUPLICATION = 2;
-  /** 雲の横移動 = state.speed × この値（障害物より遅く見せる） */
-  var CLOUD_PARALLAX = 0.04;
+  /** 雲の横移動 = state.speed × この値（指定: stage と同速にする） */
+  var CLOUD_PARALLAX = 1.0;
   /** プレイ以外（タイトル待ち・ゲームオーバー待ち）の雲の漂流 px/ループ */
   var CLOUD_IDLE_PX = 0.12;
-  /** スコア増分に掛ける係数（speed に比例） */
-  var SCORE_RATE = 0.08;
+  /**
+   * 本家 DistanceMeter.config.COEFFICIENT（0.025）と同じ。
+   * 表示スコア ≒ round(走行距離 state.distance × この値)。積分ではなく距離から換算する。
+   */
+  var SCORE_COEFFICIENT = 0.025;
   /** 画面に入ってからの経過 ms をこの間隔でコマ送り（本家は体感 0.3 秒おきに羽ばたき） */
   var PTERA_FLAP_MS = 300;
   // 本家 Runner.config.CLEAR_TIME（最初の数秒は障害物を出さない）
@@ -443,6 +449,7 @@
       var keyForTrim = null;
       if (im === spriteImg.rexCrash) keyForTrim = "rexCrash";
       else if (im === spriteImg.rexDuck0) keyForTrim = "rexDuck0";
+      else if (im === spriteImg.rexDuck1) keyForTrim = "rexDuck1";
       else if (im === spriteImg.rexRun0) keyForTrim = "rexRun0";
       else if (im === spriteImg.rexRun1) keyForTrim = "rexRun1";
       else if (im === spriteImg.rexWait) keyForTrim = "rexWait";
@@ -457,12 +464,12 @@
         insetR = Math.floor(dw * 0.26);
         insetT = vtrim ? vtrim.topTrim : Math.floor(dh * 0.06);
       }
-      // drawRex() と同じ前提: 画像は bottomTrim だけ下にずらして描画する
-      // よって imageTop = rex.y - dh + insetB
-      w0 = Math.max(12, dw - insetL - insetR);
-      h0 = Math.max(12, dh - insetT - insetB);
-      x0 = rex.x + insetL;
-      y0 = rex.y - dh + insetB + insetT;
+      // drawRex() と同じ: 表示高さを hRun/hDuck にスケール（PNG 解像度に依存させない）
+      var sc = h / dh;
+      w0 = Math.max(12, (dw - insetL - insetR) * sc);
+      h0 = Math.max(12, (dh - insetT - insetB) * sc);
+      x0 = rex.x + insetL * sc;
+      y0 = rex.y - dh * sc + insetB * sc + insetT * sc;
     } else {
       w0 = w;
       h0 = h;
@@ -558,7 +565,8 @@
   }
 
   function spawnObstacle() {
-    var allowPtera = state.speed >= PTERA_MIN_SPEED;
+    // 本家寄せ: スコア100到達でプテラ解禁（速度閾値より直感的）
+    var allowPtera = state.score >= 100;
 
     // 連続同一タイプは本家どおり抑える。選び方は「候補配列から一様抽選」（旧 if 連鎖だとプテラ不可時にサボ率が異常に偏る）
     function duplicationWouldExceed(nextType) {
@@ -674,9 +682,11 @@
       var dh = stripH;
       var dw = Math.round((im.naturalWidth * dh) / im.naturalHeight);
       if (dw < 1) dw = 1;
-      pieces.push({ key: keys[ki], w: dw, h: dh });
-      period += dw;
-      if (dw > maxDw) maxDw = dw;
+      var visW = Math.max(1, Math.round(dw * STAGE_DRAW_SCALE));
+      var visH = Math.max(1, Math.round(dh * STAGE_DRAW_SCALE));
+      pieces.push({ key: keys[ki], w: visW, h: visH });
+      period += visW;
+      if (visW > maxDw) maxDw = visW;
     }
     if (period < 1) return false;
 
@@ -696,7 +706,8 @@
       if (vtrimS) {
         bottomTrimScaled = vtrimS.bottomTrim * (p.h / img.naturalHeight);
       }
-      var drawY = Math.round(GROUND_Y - p.h + bottomTrimScaled);
+      // 見た目調整: stage 絵の足元が中央寄りに見えるので少し上へ
+      var drawY = Math.round(GROUND_Y - p.h + bottomTrimScaled - 5);
       ctx.drawImage(
         img,
         0,
@@ -837,8 +848,14 @@
 
       var vtrim = keyForTrim ? computeSpriteVerticalTrim(keyForTrim) : null;
       var bottomTrim = vtrim ? vtrim.bottomTrim : 0;
-      // bottomTrim 分だけ画像を下にずらし、「見えている足元」が groundY に乗るようにする
-      ctx.drawImage(im, rex.x, rex.y - im.naturalHeight + bottomTrim);
+      var nh = im.naturalHeight;
+      var nw = im.naturalWidth;
+      var targetH = rex.duck && rex.onGround ? rex.hDuck : rex.hRun;
+      var sc = targetH / nh;
+      var drawW = nw * sc;
+      var drawH = nh * sc;
+      var bottomTrimScaled = bottomTrim * sc;
+      ctx.drawImage(im, rex.x, rex.y - drawH + bottomTrimScaled, drawW, drawH);
       return;
     }
     drawRexProcedural();
@@ -1041,7 +1058,7 @@
     }
 
     if (state.playing) {
-      state.score += state.speed * SCORE_RATE * step;
+      state.score = Math.round(state.distance * SCORE_COEFFICIENT);
       if (state.score > hiScore) {
         hiScore = Math.floor(state.score);
         saveHi(hiScore);
